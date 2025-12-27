@@ -1,4 +1,5 @@
-mod state; // <--- This line tells Rust to look for state.rs
+mod state;
+mod assets; // <--- This is the key line that finds your new Art Gallery
 
 use clap::{Parser, Subcommand};
 use colored::*;
@@ -44,12 +45,12 @@ fn main() {
     let cli = Cli::parse();
     
     // 🧠 LOAD THE BRAIN
+    // This loads the JSON file to see how many coins you have
     let mut sprout = state::SproutState::load();
 
     match &cli.command {
         Commands::Add { task } => {
             println!("{} {}", "🌱 Seed planted:".green(), task);
-            // In a full version, we would save this to a todo list list.
         }
         Commands::Done { amount } => {
             sprout.feed(*amount);
@@ -57,10 +58,10 @@ fn main() {
             println!("Total Coins: {}", sprout.coins.to_string().yellow());
         }
         Commands::Status => {
-            // 1. Get the ASCII face based on health
+            // 1. Get the ASCII face based on health AND coins (Evolution)
             let art = sprout.get_status_ascii();
             
-            // 2. Print the Status
+            // 2. Print the Art
             println!("\n{}\n", art.cyan().bold());
             
             // 3. Print Stats
@@ -69,9 +70,11 @@ fn main() {
                 println!("Type 'sprout cpr' to attempt resuscitation.");
             } else {
                 println!("Coins: {} 🟡", sprout.coins.to_string().yellow().bold());
+                
                 if sprout.is_frozen {
                      println!("{}", "❄️ STATUS: FROZEN".blue());
                 } else {
+                     // Calculate mood based on hunger
                      println!("{}", "✨ STATUS: ACTIVE".green());
                 }
             }
