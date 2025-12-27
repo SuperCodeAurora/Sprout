@@ -1,5 +1,8 @@
+mod state; // <--- This line tells Rust to look for state.rs
+
 use clap::{Parser, Subcommand};
 use colored::*;
+use chrono::{Utc, Duration};
 
 /// Sprout: Productivity with a pulse.
 #[derive(Parser)]
@@ -23,7 +26,7 @@ enum Commands {
     Done {
         /// How many tasks did you do? (Default: 1)
         #[arg(default_value_t = 1)]
-        amount: u32,
+        amount: u64,
     },
     /// Check your Sprout's health and ASCII art
     Status,
@@ -31,7 +34,7 @@ enum Commands {
     Freeze {
         /// Number of days (Max 3)
         #[arg(short, long)]
-        days: u8,
+        days: i64,
     },
     /// Emergency Resuscitation (Only works in COMA)
     Cpr,
@@ -39,32 +42,62 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
+    
+    // 🧠 LOAD THE BRAIN
+    let mut sprout = state::SproutState::load();
 
-    // 🌿 The Skeleton Logic Switch
     match &cli.command {
         Commands::Add { task } => {
             println!("{} {}", "🌱 Seed planted:".green(), task);
-            // TODO: Save to JSON
+            // In a full version, we would save this to a todo list list.
         }
         Commands::Done { amount } => {
-            println!("{} You fed Sprout {} nutrient(s).", "💰".yellow(), amount);
-            // TODO: Update Coins += amount
+            sprout.feed(*amount);
+            println!("{} You fed Sprout {} nutrient(s).", "🍎".red(), amount);
+            println!("Total Coins: {}", sprout.coins.to_string().yellow());
         }
         Commands::Status => {
-            // Placeholder Art for "Day 1 Hunger"
-            println!("{}", "(︶︿︶)".red().bold());
-            println!("Status: {} | Coins: {}", "HUNGRY".red(), "0".yellow()); 
-            println!("Type 'sprout done' to feed.");
+            // 1. Get the ASCII face based on health
+            let art = sprout.get_status_ascii();
+            
+            // 2. Print the Status
+            println!("\n{}\n", art.cyan().bold());
+            
+            // 3. Print Stats
+            if sprout.is_coma {
+                println!("{}", "❌ SYSTEM FAILURE: COMA STATE".on_red().white().bold());
+                println!("Type 'sprout cpr' to attempt resuscitation.");
+            } else {
+                println!("Coins: {} 🟡", sprout.coins.to_string().yellow().bold());
+                if sprout.is_frozen {
+                     println!("{}", "❄️ STATUS: FROZEN".blue());
+                } else {
+                     println!("{}", "✨ STATUS: ACTIVE".green());
+                }
+            }
         }
         Commands::Freeze { days } => {
+            let cost = *days as u64 * 15;
+            
             if *days > 3 {
                 println!("{} Biology cannot sustain > 3 days freeze.", "🚫 ERROR:".red());
+            } else if sprout.coins < cost {
+                println!("{} You need {} coins to freeze for {} days. You have {}.", "💸".red(), cost, days, sprout.coins);
             } else {
-                println!("{} Sprout frozen for {} days. (Cost: {} coins)", "🧊".cyan(), days, days * 15);
+                sprout.coins -= cost;
+                sprout.is_frozen = true;
+                sprout.frozen_until = Some(Utc::now() + Duration::days(*days));
+                sprout.save();
+                println!("{} Sprout frozen for {} days. (Cost: {} coins)", "🧊".cyan(), days, cost);
+                println!("Remaining Coins: {}", sprout.coins);
             }
         }
         Commands::Cpr => {
-            println!("{} CPR Kit deployed. 50 Coins deducted.", "🚑".red());
+            if sprout.perform_cpr() {
+                println!("{} CPR SUCCESSFUL! Life signs detected.", "⚡".yellow());
+            } else {
+                println!("{} CPR FAILED. You need 50 coins.", "💀".red());
+            }
         }
     }
 }
