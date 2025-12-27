@@ -30,9 +30,11 @@ brew tap sprout-sh/sprout
 brew install sprout
 ```
 🧬 Evolution Stack
+
 Your Sprout evolves based on the coins you accumulate. The journey is long, but the form factor changes dramatically.
 
 Cost (Coins)	Class	Description
+
 1	🌱 The Sprout: It is born. Fragile. Don't step on it.
 
 50	👶 Baby Sprite: Cute. Needy. Wiggles when you type.
@@ -95,6 +97,56 @@ The Fine: Pay 50 Coins (Hope you saved up).
 
 The Grind: Complete a Hardcore Streak (4 hours of detected coding activity) to manually pump life back into the system.
 
+🧊 Cryo-Stasis (Vacation Mode)
+
+Going away for the weekend? Rest is expensive.
+
+You can purchase a Cryo-Pod to freeze your Sprout's biological clock.
+
+```Bash
+sprout freeze --days 2
+```
+Cost: 15 Coins / Day. (Rest is a luxury).
+
+Visual: (🧊 ︶ v ︶ 🧊💤)
+
+Restrictions:
+
+Max Duration: 3 Days. (Biology fails after 72h).
+
+The Thaw: Upon waking, metabolic rate spikes 300%. Hunger is immediate. You must feed it instantly upon return, or it risks immediate regression.
+
+🚀 Usage
+Feed (Complete a task):
+
+``` Bash
+sprout done 1
+# Effect: +1 Coin. Sprout looks happy.
+```
+Sync with Git (Auto-Feed):
 
 
+``` Bash
+sprout watch --repo ./my-project
+# Effect: Every 'git commit' automatically feeds Sprout.
+```
 
+Check Status:
+
+``` Bash
+sprout status
+# Displays current ASCII art, health bar, and coin balance.
+```
+
+Emergency CPR:
+
+``` Bash
+sprout cpr
+# ONLY available in COMA state.
+```
+
+🤝 Contributing
+
+We are looking for pixel artists to help design the Level 15,000 Alien Gadgets. PRs welcome.
+
+*BOOST your productivity. Literally.*
