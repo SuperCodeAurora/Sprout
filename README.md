@@ -1,5 +1,5 @@
 # 🌿 Sprout
-
+ 
 **Productivity with a pulse.**
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
