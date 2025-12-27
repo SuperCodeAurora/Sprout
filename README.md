@@ -149,4 +149,4 @@ sprout cpr
 
 We are looking for pixel artists to help design the Level 15,000 Alien Gadgets. PRs welcome.
 
-*BOOST your productivity. Literally.*
+> *BOOST your productivity. Literally.*
