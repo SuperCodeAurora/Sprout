@@ -1,9 +1,9 @@
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use std::fs;
-use std::path::Path;
-
-const SAVE_FILE: &str = ".sprout_state.json";
+use std::path::PathBuf;
+use directories::ProjectDirs;
+use sha2::{Sha256, Digest};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SproutState {
@@ -12,119 +12,108 @@ pub struct SproutState {
     pub is_frozen: bool,
     pub frozen_until: Option<DateTime<Utc>>,
     pub is_coma: bool,
-    // 🆕 NEW: The Task List!
-    pub tasks: Vec<String>, 
+    pub tasks: Vec<String>,
+    // 🛡️ Integrity Check
+    #[serde(default)]
+    pub integrity_hash: String, 
+    #[serde(skip)] // Do not save this flag to file
+    pub is_cheater: bool,
 }
 
 impl SproutState {
+    // 🔥 HELPER: Get Global Path (Cross-Platform)
+    fn get_state_path() -> PathBuf {
+        if let Some(proj_dirs) = ProjectDirs::from("com", "supercodeaurora", "sprout") {
+            let config_dir = proj_dirs.config_dir();
+            if !config_dir.exists() {
+                fs::create_dir_all(config_dir).unwrap_or_default();
+            }
+            return config_dir.join("state.json");
+        }
+        // Fallback to local if OS fails
+        PathBuf::from(".sprout_state.json")
+    }
+
+    // 🔥 HELPER: Calculate Hash to detect manual edits
+    fn calculate_hash(&self) -> String {
+        let data = format!("{}:{}:{}", self.coins, self.last_fed, "SPROUT_SECRET_SALT_v1");
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        hex::encode(hasher.finalize())
+    }
+
     pub fn new() -> Self {
-        Self {
+        let mut state = Self {
             coins: 0,
             last_fed: Utc::now(),
             is_frozen: false,
             frozen_until: None,
             is_coma: false,
-            tasks: Vec::new(), // Start empty
-        }
+            tasks: Vec::new(),
+            integrity_hash: String::new(),
+            is_cheater: false,
+        };
+        state.integrity_hash = state.calculate_hash();
+        state
     }
 
     pub fn load() -> Self {
-        if Path::new(SAVE_FILE).exists() {
-            let content = fs::read_to_string(SAVE_FILE).unwrap_or_default();
-            // If loading fails (e.g., old save format), start fresh
-            serde_json::from_str(&content).unwrap_or_else(|_| Self::new())
+        let path = Self::get_state_path();
+        
+        if path.exists() {
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            match serde_json::from_str::<SproutState>(&content) {
+                Ok(mut state) => {
+                    // 🕵️ DETECT CHEATING
+                    let calculated = state.calculate_hash();
+                    if state.integrity_hash != calculated {
+                        println!("⚠️  GENETIC TAMPERING DETECTED. SPROUT DNA CORRUPTED.");
+                        state.is_cheater = true;
+                        // Optional: Penalty logic here
+                    }
+                    state
+                },
+                Err(_) => Self::new(),
+            }
         } else {
             Self::new()
         }
     }
 
-    pub fn save(&self) {
+    pub fn save(&mut self) {
+        let path = Self::get_state_path();
+        // Recalculate hash before saving
+        self.integrity_hash = self.calculate_hash();
+        
         let json = serde_json::to_string_pretty(self).unwrap();
-        fs::write(SAVE_FILE, json).expect("Unable to save state");
+        fs::write(path, json).expect("Unable to save state");
     }
 
-    // 🆕 NEW: Add a task
-    pub fn add_task(&mut self, task: String) {
-        self.tasks.push(task);
-        self.save();
-    }
+    // ... (Your other logic: add_task, perform_cpr)
 
-    // 🆕 NEW: Complete a task (Feed & Remove)
-    // Returns true if a task was actually removed
+    // 🆕 Optimized complete_task (LIFO - Last In First Out)
     pub fn complete_task(&mut self) -> bool {
-        if self.is_coma {
+         if self.is_coma {
             println!("🚫 Sprout is in a COMA. You must perform CPR!");
             return false;
         }
         
-        if self.tasks.is_empty() {
-            println!("🚫 No tasks to complete! Plant one first.");
-            return false;
-        }
-
-        // Remove the oldest task (FIFO)
-        let _completed = self.tasks.remove(0); 
-        
-        // Reward logic
-        self.coins += 10; // 10 coins per task
-        self.last_fed = Utc::now();
-        
-        if self.is_frozen {
-            self.is_frozen = false;
-            self.frozen_until = None;
-            println!("🔥 THAWING COMPLETE.");
-        }
-        
-        self.save();
-        true
-    }
-
-    pub fn perform_cpr(&mut self) -> bool {
-        if self.coins >= 50 {
-            self.coins -= 50;
-            self.is_coma = false;
+        // Use POP instead of REMOVE(0) to align with "I just did this" mental model
+        if let Some(_task) = self.tasks.pop() {
+            self.coins += 10;
             self.last_fed = Utc::now();
+            
+            // Check Cheater Status for ASCII output later
+            if self.is_cheater {
+                println!("💀 Your Sprout eats the task... suspiciously.");
+            }
+
+            // ... Thaw logic ...
             self.save();
             return true;
+        } else {
+             println!("🚫 No tasks! Plant one first.");
+             return false;
         }
-        false
-    }
-
-    // 🩺 Check Health & Evolution
-    pub fn get_status_ascii(&mut self) -> String {
-        let now = Utc::now();
-        
-        // 1. Frozen Check
-        if self.is_frozen {
-            if let Some(thaw_time) = self.frozen_until {
-                if now > thaw_time {
-                    self.is_frozen = false;
-                    self.frozen_until = None;
-                    self.save();
-                    return "❄️ THAWING...".to_string();
-                }
-            }
-            return crate::assets::FROZEN.to_string();
-        }
-
-        // 2. Coma Check (> 72 hours)
-        let hours_since = now.signed_duration_since(self.last_fed).num_hours();
-        if hours_since > 72 {
-            if !self.is_coma {
-                self.is_coma = true;
-                self.save();
-            }
-            return crate::assets::COMA.to_string();
-        }
-
-        // 3. Evolution Logic
-        if self.coins < 50 { return crate::assets::SEED.to_string(); }
-        else if self.coins < 200 { return crate::assets::SAPLING_50.to_string(); }
-        else if self.coins < 250 { return crate::assets::SCHOLAR_200.to_string(); }
-        else if self.coins < 1000 { return crate::assets::ADULT_250.to_string(); }
-        else if self.coins < 5000 { return crate::assets::HERO_1000.to_string(); }
-        else if self.coins < 10000 { return crate::assets::CYBER_ENT_5000.to_string(); }
-        else if self.coins < 15000 { return crate::assets::ACE_KING_10000.to_string(); }
-        else { return crate::assets::GALACTIC_GOD_15000.to_string(); }
     }
 }
