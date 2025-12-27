@@ -53,7 +53,7 @@ fn main() {
         Commands::Status => {
             // Placeholder Art for "Day 1 Hunger"
             println!("{}", "(︶︿︶)".red().bold());
-            println!("Status: {} | Coins: {}", "HUNGRY".red(), "0".yellow());
+            println!("Status: {} | Coins: {}", "HUNGRY".red(), "0".yellow()); 
             println!("Type 'sprout done' to feed.");
         }
         Commands::Freeze { days } => {
