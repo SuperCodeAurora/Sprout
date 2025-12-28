@@ -1,9 +1,15 @@
 use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Duration};
 use std::fs;
 use std::path::PathBuf;
 use directories::ProjectDirs;
 use sha2::{Sha256, Digest};
+use base64::{Engine as _, engine::general_purpose};
+
+// 🔒 SECURITY CONFIG
+const SALT: &str = "SPROUT_BIOLOGICAL_KEY_v2_DONOTTOUCH";
+const MIN_FEED_INTERVAL_SECONDS: i64 = 30; // Can only feed once every 30s
+const MAX_COINS_PER_DAY: u64 = 500; // Cap daily earnings
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SproutState {
@@ -13,67 +19,63 @@ pub struct SproutState {
     pub frozen_until: Option<DateTime<Utc>>,
     pub is_coma: bool,
     pub tasks: Vec<String>,
-    // 🛡️ Integrity Check
-    #[serde(default)]
-    pub integrity_hash: String, 
-    #[serde(skip)] // Do not save this flag to file
+    // 🛡️ Security Fields
+    pub integrity_hash: String,
+    pub daily_feed_count: u64,
+    pub last_reset_day: DateTime<Utc>,
+    #[serde(skip)]
     pub is_cheater: bool,
+    #[serde(skip)]
+    pub cheat_reason: String,
 }
 
 impl SproutState {
-    // 🔥 HELPER: Get Global Path (Cross-Platform)
-    fn get_state_path() -> PathBuf {
-        if let Some(proj_dirs) = ProjectDirs::from("com", "supercodeaurora", "sprout") {
-            let config_dir = proj_dirs.config_dir();
-            if !config_dir.exists() {
-                fs::create_dir_all(config_dir).unwrap_or_default();
-            }
-            return config_dir.join("state.json");
-        }
-        // Fallback to local if OS fails
-        PathBuf::from(".sprout_state.json")
-    }
+    // ... (get_state_path remains the same) ...
 
-    // 🔥 HELPER: Calculate Hash to detect manual edits
     fn calculate_hash(&self) -> String {
-        let data = format!("{}:{}:{}", self.coins, self.last_fed, "SPROUT_SECRET_SALT_v1");
+        // We include internal metrics in the hash so they can't be edited individually
+        let data = format!("{}:{}:{}:{}:{}", 
+            self.coins, 
+            self.last_fed, 
+            self.daily_feed_count, 
+            self.is_coma, 
+            SALT
+        );
         let mut hasher = Sha256::new();
         hasher.update(data);
         hex::encode(hasher.finalize())
-    }
-
-    pub fn new() -> Self {
-        let mut state = Self {
-            coins: 0,
-            last_fed: Utc::now(),
-            is_frozen: false,
-            frozen_until: None,
-            is_coma: false,
-            tasks: Vec::new(),
-            integrity_hash: String::new(),
-            is_cheater: false,
-        };
-        state.integrity_hash = state.calculate_hash();
-        state
     }
 
     pub fn load() -> Self {
         let path = Self::get_state_path();
         
         if path.exists() {
-            let content = fs::read_to_string(&path).unwrap_or_default();
-            match serde_json::from_str::<SproutState>(&content) {
+            // 1. READ (Now expects Base64 encoded string, not raw JSON)
+            let encoded_content = fs::read_to_string(&path).unwrap_or_default();
+            
+            // 2. DECODE
+            let decoded_bytes = general_purpose::STANDARD
+                .decode(&encoded_content)
+                .unwrap_or_default(); // Fallback if tampering broke encoding
+            
+            let json_str = String::from_utf8(decoded_bytes).unwrap_or_default();
+
+            match serde_json::from_str::<SproutState>(&json_str) {
                 Ok(mut state) => {
-                    // 🕵️ DETECT CHEATING
+                    // 🕵️ SECURITY CHECK 1: Hash Validation
                     let calculated = state.calculate_hash();
                     if state.integrity_hash != calculated {
-                        println!("⚠️  GENETIC TAMPERING DETECTED. SPROUT DNA CORRUPTED.");
-                        state.is_cheater = true;
-                        // Optional: Penalty logic here
+                        state.mark_cheater("DNA_MISMATCH");
                     }
+
+                    // 🕵️ SECURITY CHECK 2: Time Travel (The Future-Fed Plant)
+                    if state.last_fed > Utc::now() + Duration::minutes(5) {
+                        state.mark_cheater("CHRONO_DISPLACEMENT");
+                    }
+
                     state
                 },
-                Err(_) => Self::new(),
+                Err(_) => Self::new(), // Corrupted save = Rebirth
             }
         } else {
             Self::new()
@@ -82,38 +84,67 @@ impl SproutState {
 
     pub fn save(&mut self) {
         let path = Self::get_state_path();
-        // Recalculate hash before saving
         self.integrity_hash = self.calculate_hash();
         
-        let json = serde_json::to_string_pretty(self).unwrap();
-        fs::write(path, json).expect("Unable to save state");
+        let json = serde_json::to_string(&self).unwrap();
+        
+        // 🔒 ENCODE (Obfuscation layer)
+        let encoded = general_purpose::STANDARD.encode(json);
+        
+        fs::write(path, encoded).expect("Unable to save state");
     }
 
-    // ... (Your other logic: add_task, perform_cpr)
+    fn mark_cheater(&mut self, reason: &str) {
+        self.is_cheater = true;
+        self.cheat_reason = reason.to_string();
+        // Punishment: Cap coins or visual shame? 
+        // We do not reset coins here to avoid "Rage Quit", but we brand them.
+    }
 
-    // 🆕 Optimized complete_task (LIFO - Last In First Out)
-    pub fn complete_task(&mut self) -> bool {
-         if self.is_coma {
-            println!("🚫 Sprout is in a COMA. You must perform CPR!");
+    // 🛡️ SECURE TASK COMPLETION
+    pub fn complete_task(&mut self, is_git: bool) -> bool {
+        let now = Utc::now();
+
+        // 1. COMA CHECK
+        if self.is_coma {
+            println!("🚫 Sprout is in a COMA. CPR required.");
             return false;
         }
-        
-        // Use POP instead of REMOVE(0) to align with "I just did this" mental model
-        if let Some(_task) = self.tasks.pop() {
-            self.coins += 10;
-            self.last_fed = Utc::now();
-            
-            // Check Cheater Status for ASCII output later
-            if self.is_cheater {
-                println!("💀 Your Sprout eats the task... suspiciously.");
-            }
 
-            // ... Thaw logic ...
-            self.save();
-            return true;
-        } else {
-             println!("🚫 No tasks! Plant one first.");
-             return false;
+        // 2. RATE LIMIT (Digestion Speed)
+        let seconds_since_fed = now.signed_duration_since(self.last_fed).num_seconds();
+        if seconds_since_fed < MIN_FEED_INTERVAL_SECONDS {
+            println!("🚫 Sprout is still digesting! Wait {}s.", MIN_FEED_INTERVAL_SECONDS - seconds_since_fed);
+            return false;
         }
+
+        // 3. DAILY CAP (Anti-Bot)
+        // Reset day if needed
+        if now.date_naive() > self.last_reset_day.date_naive() {
+            self.daily_feed_count = 0;
+            self.last_reset_day = now;
+        }
+        if self.daily_feed_count >= MAX_COINS_PER_DAY {
+            println!("🚫 Sprout is full for today. (Daily Cap Reached)");
+            return false;
+        }
+
+        // 4. EXECUTE FEEDING
+        // For Git, we don't need to pop a task, but we still apply rate limits
+        if is_git {
+            // Logic for git feeding
+        } else {
+            // Logic for manual task popping
+            if self.tasks.pop().is_none() {
+                println!("🚫 No tasks to complete.");
+                return false;
+            }
+        }
+
+        self.coins += 10;
+        self.daily_feed_count += 10;
+        self.last_fed = now;
+        self.save();
+        true
     }
 }
