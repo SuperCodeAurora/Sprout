@@ -1,8 +1,7 @@
 use rand::Rng;
 
 // 🎭 Mood Definitions
-// Sprout 并不是每时每刻都盯着你。有时候它在发呆。
-enum Mood {
+pub enum Mood {
     Happy,
     Sleepy,
     Hyper,
@@ -26,14 +25,13 @@ fn get_eyes(mood: Mood) -> &'static str {
             options[rng.gen_range(0..options.len())]
         },
         Mood::Suspicious => {
-            let options = ["?_?", "$_$", "x_o", "o_x"]; // Glitched eyes
+            let options = ["?_?", "$_$", "x_o", "o_x"]; 
             options[rng.gen_range(0..options.len())]
         }
     }
 }
 
 // 🔥 DYNAMIC ASSET GENERATOR
-// Input: Coins, Is_Cheater
 pub fn get_plant_art(coins: u64, is_cheater: bool) -> String {
     
     // 1. Check for CHEATER status first
@@ -47,69 +45,64 @@ pub fn get_plant_art(coins: u64, is_cheater: bool) -> String {
 "#, eyes);
     }
 
-    // 2. Normal Evolution Logic with Dynamic Eyes
-    let eyes = get_eyes(Mood::Happy); // Default mood for now
+    // 2. Normal Evolution Logic
+    let eyes = get_eyes(Mood::Happy); 
 
     if coins < 50 {
-        // Seedling
         format!(r#"
       🌱
      [ {} ]
     /     \
  -- SPROUT --
 "#, eyes)
-
     } else if coins < 200 {
-        // Sapling
         format!(r#"
       🌿
      ({})
     /|   |\
    -- BABY --
 "#, eyes)
-
-    } else if coins < 1000 {
-        // Scholar (Glasses are fixed, but mouth could change?)
-        // keeping static for specific prop consistency
+    } else if coins < 250 {
         r#"
       🌳
      (⌐■_■)
     /| 📖 |\
   -- SCHOLAR --
 "#.to_string()
-
+    } else if coins < 1000 {
+        format!(r#"
+       🌳
+      /  \
+     ( ˘ ▽ ˘ )
+    /|  👔  |\
+    -- ADULT --
+"#)
     } else if coins < 5000 {
-        // Hero
         format!(r#"
        🌲
       /  \
     ⚔️({})🛡️
      /|  |\
     -- HERO --
-"#, get_eyes(Mood::Hyper)) // Hero is always intense
-
+"#, get_eyes(Mood::Hyper))
     } else if coins < 10000 {
-        // Cyber Ent (Matrix vibes)
         format!(r#"
        🤖
      [10101]
     /({}) \
    -- CYBER --
-"#, "0_0") // Cyber eyes are fixed
-
+"#, "0_0")
     } else {
-        // GOD MODE (Expanded)
         format!(r#"
        👑
      ✨🌟✨
   🪐( {} )🪐
    /  ||  \
   -- COSMIC --
-"#, " 👁️ 👄 👁️ ") // Special God Face
+"#, " 👁️ 👄 👁️ ")
     }
 }
 
-// Static Utility States
 pub const COMA: &str = r#"
       🥀
      (x_x)
